@@ -53,7 +53,7 @@ if args.subcommand is None:
 
 # Build transformer model.
 X = theano.shared(np.array([[[[]]]], dtype=floatX))
-alpha = theano.shared(np.array([], dtype=floatX))
+alpha = theano.shared(np.array([[]], dtype=floatX))
 
 weights = None if args.subcommand == "train" else args.model
 transformer_net = get_transformer_net(X, alpha, weights)
