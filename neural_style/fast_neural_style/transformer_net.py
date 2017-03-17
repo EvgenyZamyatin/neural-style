@@ -7,7 +7,8 @@ from keras.models import Model
 from keras.engine.topology import Layer
 
 from neural_style.utils import floatX
-
+import sys
+sys.setrecursionlimit(100000)
 
 class InstanceNormalization(Layer):
     def __init__(self, **kwargs):
@@ -90,23 +91,23 @@ def get_transformer_net(X, alpha, weights=None):
     y = conv_layer(input_X, 32, 9)
     y = cond_concat(y, input_a, (32, 256, 256))
     y = conv_layer(y, 64, 3, subsample=2)
-    #y = cond_concat(y, input_a, (64, 128, 128))
+    y = cond_concat(y, input_a, (64, 128, 128))
     y = conv_layer(y, 128, 3, subsample=2)
-    #y = cond_concat(y, input_a, (128, 64, 64))
+    y = cond_concat(y, input_a, (128, 64, 64))
     y = residual_block(y)
-    #y = cond_concat(y, input_a, (128, 64, 64))
+    y = cond_concat(y, input_a, (128, 64, 64))
     y = residual_block(y)
-    #y = cond_concat(y, input_a, (128, 64, 64))
+    y = cond_concat(y, input_a, (128, 64, 64))
     y = residual_block(y)
-    #y = cond_concat(y, input_a, (128, 64, 64))
+    y = cond_concat(y, input_a, (128, 64, 64))
     y = residual_block(y)
-    #y = cond_concat(y, input_a, (128, 64, 64))
+    y = cond_concat(y, input_a, (128, 64, 64))
     y = residual_block(y)
-    #y = cond_concat(y, input_a, (128, 64, 64))
+    y = cond_concat(y, input_a, (128, 64, 64))
     y = conv_layer(y, 64, 3, upsample=2)
-    #y = cond_concat(y, input_a, (64, 128, 128))
+    y = cond_concat(y, input_a, (64, 128, 128))
     y = conv_layer(y, 32, 3, upsample=2)
-    #y = cond_concat(y, input_a, (32, 256, 256))
+    y = cond_concat(y, input_a, (32, 256, 256))
     y = conv_layer(y, 3, 9, only_conv=True)
     y = Activation("tanh")(y)
     y = Lambda(lambda x: x * 150, output_shape=(3, None, None))(y)
