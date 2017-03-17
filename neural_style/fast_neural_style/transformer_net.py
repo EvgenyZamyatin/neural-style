@@ -79,7 +79,7 @@ def get_transformer_net(X, alpha, weights=None):
     input_X = Input(tensor=X, shape=(3, 256, 256))
     input_a = Input(tensor=alpha, shape=(1,))
     y = conv_layer(input_X, 32, 9)
-    y1 = Dense(32, input_shape=(1,))(input_a)
+    y1 = Dense(32, input_shape=(1,))(input_a).reshape((-1, 32, 1, 1))
     y = merge([y, y1])
     y = conv_layer(y, 64, 3, subsample=2)
     y = merge([y, Dense(64)(input_a)])
