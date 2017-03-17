@@ -51,7 +51,8 @@ class ReflectPadding2D(Layer):
 
     def get_output_shape_for(self, input_shape):
         return (
-        input_shape[0], input_shape[1], input_shape[2] + (2 * self.padding[0]), input_shape[3] + (2 * self.padding[1]))
+            input_shape[0], input_shape[1], input_shape[2] + (2 * self.padding[0]),
+            input_shape[3] + (2 * self.padding[1]))
 
 
 def conv_layer(in_, nb_filter, filter_length, subsample=1, upsample=1, only_conv=False):
@@ -74,35 +75,38 @@ def residual_block(in_):
     return merge([out, in_], mode="sum")
 
 
+def cond_concat(y, input_a, shape):
+    y1 = Lambda(lambda x: x.
+                repeat(y.shape[0] * y.shape[1] * y.shape[2] * y.shape[3]).
+                reshape((y.shape[0], y.shape[1], y.shape[2], y.shape[3])),
+                output_shape=shape)(input_a)
+    y = merge([y, y1])
+    return y
+
+
 def get_transformer_net(X, alpha, weights=None):
     input_X = Input(tensor=X, shape=(3, 256, 256))
     input_a = Input(tensor=alpha, shape=(1,))
     y = conv_layer(input_X, 32, 9)
-    # y1 = Reshape((32, 1, 1))(Dense(32, input_shape=(1,))(input_a))
-    # y = merge([y, y1])
-    y1 = Lambda(lambda x: x.
-                repeat(y.shape[0] * y.shape[1] * y.shape[2] * y.shape[3]).
-                reshape((y.shape[0], y.shape[1], y.shape[2], y.shape[3])),
-                output_shape=(32, 256, 256))(input_a)
-    y = merge([y, y1])
+    y = cond_concat(y, input_a, (32, 256, 256))
     y = conv_layer(y, 64, 3, subsample=2)
-    y = merge([y, Dense(64)(input_a)])
+    y = cond_concat(y, input_a, (64, 128, 128))
     y = conv_layer(y, 128, 3, subsample=2)
-    y = merge([y, Dense(128)(input_a)])
+    y = cond_concat(y, input_a, (128, 64, 64))
     y = residual_block(y)
-    y = merge([y, Dense(128)(input_a)])
+    y = cond_concat(y, input_a, (128, 64, 64))
     y = residual_block(y)
-    y = merge([y, Dense(128)(input_a)])
+    y = cond_concat(y, input_a, (128, 64, 64))
     y = residual_block(y)
-    y = merge([y, Dense(128)(input_a)])
+    y = cond_concat(y, input_a, (128, 64, 64))
     y = residual_block(y)
-    y = merge([y, Dense(128)(input_a)])
+    y = cond_concat(y, input_a, (128, 64, 64))
     y = residual_block(y)
-    y = merge([y, Dense(128)(input_a)])
+    y = cond_concat(y, input_a, (128, 64, 64))
     y = conv_layer(y, 64, 3, upsample=2)
-    y = merge([y, Dense(64)(input_a)])
+    y = cond_concat(y, input_a, (64, 128, 128))
     y = conv_layer(y, 32, 3, upsample=2)
-    y = merge([y, Dense(32)(input_a)])
+    y = cond_concat(y, input_a, (32, 256, 256))
     y = conv_layer(y, 3, 9, only_conv=True)
     y = Activation("tanh")(y)
     y = Lambda(lambda x: x * 150, output_shape=(3, None, None))(y)
