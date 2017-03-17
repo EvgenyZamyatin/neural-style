@@ -134,7 +134,7 @@ if args.subcommand == "train":
             a = np.float32(np.random.uniform(1., alpha_bound, (batch_size, 1)))
             b = np.random.randint(0, 2, a.shape)
             b[b == 0] = -1
-            a = np.power(a, b)
+            a = np.float32(np.power(a, b))
             alpha.set_value(a)
 
             loss = optim_step().item()
@@ -151,7 +151,7 @@ if args.subcommand == "train":
                         a = np.float32(np.random.uniform(1., alpha_bound, (batch_size, 1)))
                         b = np.random.randint(0, 2, a.shape)
                         b[b == 0] = -1
-                        a = np.power(a, b)
+                        a = np.float32(np.power(a, b))
                         alpha.set_value(a)
                         loss = get_loss().item()
                         batch_size = X.shape[0].eval()
