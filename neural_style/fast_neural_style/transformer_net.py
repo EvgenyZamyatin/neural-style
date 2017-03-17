@@ -79,8 +79,12 @@ def get_transformer_net(X, alpha, weights=None):
     input_X = Input(tensor=X, shape=(3, 256, 256))
     input_a = Input(tensor=alpha, shape=(1,))
     y = conv_layer(input_X, 32, 9)
-    y1 = Reshape((32, 1, 1))(Dense(32, input_shape=(1,))(input_a))
-    y = merge([y, y1])
+    #y1 = Reshape((32, 1, 1))(Dense(32, input_shape=(1,))(input_a))
+    #y = merge([y, y1])
+    y = merge([y, Lambda(lambda x: x.
+                         repeat(x.shape[0] * x.shape[1] * x.shape[2] * x.shape[3]).
+                         reshape(x.shape[0], x.shape[1], x.shape[2], x.shape[3]))],
+              output_shape=(32, 256, 256))
     y = conv_layer(y, 64, 3, subsample=2)
     y = merge([y, Dense(64)(input_a)])
     y = conv_layer(y, 128, 3, subsample=2)
