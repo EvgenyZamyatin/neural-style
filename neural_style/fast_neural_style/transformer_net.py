@@ -78,8 +78,8 @@ def residual_block(in_):
 
 def cond_concat(y, input_a, shape):
     y1 = Lambda(lambda x: x.
-                repeat(y.shape[1] * y.shape[2] * y.shape[3]).
-                reshape((y.shape[1], y.shape[2], y.shape[3])),
+                repeat(y.shape[1] * y.shape[2] * y.shape[3], axis=1).
+                reshape((y.shape[0], y.shape[1], y.shape[2], y.shape[3])),
                 output_shape=shape)(input_a)
     y = merge([y, y1])
     return y

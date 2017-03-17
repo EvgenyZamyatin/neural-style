@@ -156,7 +156,7 @@ if args.subcommand == "train":
 
                 if args.test_image is not None:
                     X.set_value([test_image]*5, borrow=True)
-                    alpha.set_value(np.array([np.arange(1./alpha_bound, alpha_bound, (alpha_bound-1./alpha_bound) / 5)], dtype=floatX))
+                    alpha.set_value(np.arange(1./alpha_bound, alpha_bound, (alpha_bound-1./alpha_bound) / 5, dtype=floatX).reshape((5,1)))
                     test_tr = get_Xtr()
                     test_tr = np.concatenate(test_tr, axis=1)
                     deprocess_img_and_save(test_tr, os.path.join(args.output_dir, "test_iter_{}.jpg".format(tri + 1)))
