@@ -52,8 +52,10 @@ if args.subcommand is None:
 
 # Build transformer model.
 X = theano.shared(np.array([[[[]]]], dtype=floatX))
+alpha = theano.shared(np.array([], dtype=floatX))
+
 weights = None if args.subcommand == "train" else args.model
-transformer_net = get_transformer_net(X, weights)
+transformer_net = get_transformer_net(X, alpha, weights)
 Xtr = transformer_net.output
 get_Xtr = theano.function([], Xtr)
 
@@ -90,7 +92,7 @@ if args.subcommand == "train":
     except AttributeError:
         print("Error: unrecognized content layer: {}".format(args.content_layer))
         sys.exit(1)
-    content_loss = T.sum(T.sqr(cl_X - cl_Xtr)) / T.cast(cl_X.size, floatX)
+    content_loss = T.sum(T.sum(T.sqr(cl_X - cl_Xtr), axis=(1, 2, 3)) / alpha) / T.cast(cl_X.size, floatX)
 
     # Build the style loss.
     style_loss = 0.
@@ -109,7 +111,7 @@ if args.subcommand == "train":
 
         get_gram_X = theano.function([], gram_X)
         style_gram = theano.shared(get_gram_X()[0, :, :])
-        style_loss = style_loss + T.sum(T.sqr(style_gram.dimshuffle("x", 0, 1) - gram_Xtr)) / T.cast(Xtr.shape[0], floatX)
+        style_loss = style_loss + T.sum(T.sum(T.sqr(style_gram.dimshuffle("x", 0, 1) - gram_Xtr), axis=(1, 2, 3))*alpha) / T.cast(Xtr.shape[0], floatX)
 
     # Build the TV loss.
     tv_loss = (T.sum(T.abs_(Xtr[:, :, 1:, :] - Xtr[:, :, :-1, :])) + T.sum(T.abs_(Xtr[:, :, :, 1:] - Xtr[:, :, :, :-1]))) / T.cast(Xtr.shape[0], floatX)
@@ -121,9 +123,13 @@ if args.subcommand == "train":
 
     # Run the optimization loop.
     train_losses, val_losses = [], []
-    with tqdm(desc="Training", file=sys.stdout, ncols=100, total=args.train_iterations, ascii=False, unit="iteration") as trbar:
+    alpha_bound = 1.1
+    with tqdm(desc="Training", file=sys.stdout, ncols=100, total=args.train_iterations, ascii=True, unit="iteration") as trbar:
         for tri in range(args.train_iterations):
+            alpha_bound = min(3., alpha_bound + 4e-4)
             X.set_value(train_batch_generator.get_batch(), borrow=True)
+            batch_size = X.shape[0].eval()
+            alpha.set_value(np.random.uniform(1./alpha_bound, alpha_bound, batch_size))
             loss = optim_step().item()
             train_losses.append(loss)
             trbar.set_description("Training (loss {:.3g})".format(loss))
@@ -132,9 +138,10 @@ if args.subcommand == "train":
             if (tri + 1) % args.val_every == 0 or (tri + 1) == args.train_iterations:
                 batch_val_losses = []
                 n_val = 0
-                with tqdm(desc="Validating", file=sys.stdout, ncols=100, total=args.val_iterations, ascii=False, unit="iteration", leave=False) as valbar:
+                with tqdm(desc="Validating", file=sys.stdout, ncols=100, total=args.val_iterations, ascii=True, unit="iteration", leave=False) as valbar:
                     for vali in range(args.val_iterations):
                         X.set_value(val_batch_generator.get_batch(), borrow=True)
+                        alpha.set_value(np.random.uniform(1. / alpha_bound, alpha_bound, batch_size))
                         loss = get_loss().item()
                         batch_size = X.shape[0].eval()
                         n_val += batch_size
@@ -147,8 +154,10 @@ if args.subcommand == "train":
                     transformer_net.save_weights(os.path.join(args.output_dir, "model_checkpoint_{}.h5".format(tri + 1)), overwrite=True)
 
                 if args.test_image is not None:
-                    X.set_value(test_image, borrow=True)
+                    X.set_value([test_image]*5, borrow=True)
+                    alpha.set_value(np.arange(1./alpha_bound, alpha_bound, (alpha_bound-1./alpha_bound) / 5))
                     test_tr = get_Xtr()
+                    test_tr = np.concatenate(test_tr, axis=1)
                     deprocess_img_and_save(test_tr, os.path.join(args.output_dir, "test_iter_{}.jpg".format(tri + 1)))
 
     # Save weights and losses.

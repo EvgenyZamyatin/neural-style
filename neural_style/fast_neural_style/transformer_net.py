@@ -2,7 +2,7 @@ import sys
 
 import numpy as np
 import theano.tensor as T
-from keras.layers import Input, Conv2D, Activation, Lambda, UpSampling2D, merge
+from keras.layers import Input, Conv2D, Activation, Lambda, UpSampling2D, merge, Dense
 from keras.models import Model
 from keras.engine.topology import Layer
 
@@ -75,23 +75,34 @@ def residual_block(in_):
     return merge([out, in_], mode="sum")
 
 
-def get_transformer_net(X, weights=None):
-    input_ = Input(tensor=X, shape=(3, 256, 256))
-    y = conv_layer(input_, 32, 9)
+def get_transformer_net(X, alpha, weights=None):
+    input_X = Input(tensor=X, shape=(3, 256, 256))
+    input_a = Input(tensor=alpha, shape=(1,))
+    y = conv_layer(input_X, 32, 9)
+    y = merge([y, Dense(32)(input_a)])
     y = conv_layer(y, 64, 3, subsample=2)
+    y = merge([y, Dense(64)(input_a)])
     y = conv_layer(y, 128, 3, subsample=2)
+    y = merge([y, Dense(128)(input_a)])
     y = residual_block(y)
+    y = merge([y, Dense(128)(input_a)])
     y = residual_block(y)
+    y = merge([y, Dense(128)(input_a)])
     y = residual_block(y)
+    y = merge([y, Dense(128)(input_a)])
     y = residual_block(y)
+    y = merge([y, Dense(128)(input_a)])
     y = residual_block(y)
+    y = merge([y, Dense(128)(input_a)])
     y = conv_layer(y, 64, 3, upsample=2)
+    y = merge([y, Dense(64)(input_a)])
     y = conv_layer(y, 32, 3, upsample=2)
+    y = merge([y, Dense(32)(input_a)])
     y = conv_layer(y, 3, 9, only_conv=True)
     y = Activation("tanh")(y)
     y = Lambda(lambda x: x * 150, output_shape=(3, None, None))(y)
 
-    net = Model(input=input_, output=y)
+    net = Model(input=[input_X, input_a], output=y)
     if weights is not None:
         try:
             net.load_weights(weights)
