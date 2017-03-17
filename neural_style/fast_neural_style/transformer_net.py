@@ -88,8 +88,8 @@ def cond_concat(y, input_a, shape):
 def get_transformer_net(X, alpha, weights=None):
     input_X = Input(tensor=X, shape=(3, 256, 256))
     input_a = Input(tensor=alpha, shape=(1,))
-    input_X = cond_concat(input_X, input_a, (1, 256, 256))
-    y = conv_layer(input_X, 32, 9)
+    y = cond_concat(input_X, input_a, (1, 256, 256))
+    y = conv_layer(y, 32, 9)
     #y = cond_concat(y, input_a, (1, 256, 256))
     y = conv_layer(y, 64, 3, subsample=2)
     #y = cond_concat(y, input_a, (1, 128, 128))
