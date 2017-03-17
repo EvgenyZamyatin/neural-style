@@ -130,7 +130,7 @@ if args.subcommand == "train":
             alpha_bound = min(3., alpha_bound + 4e-4)
             X.set_value(train_batch_generator.get_batch(), borrow=True)
             batch_size = X.shape[0].eval()
-            alpha.set_value(np.float32(np.random.uniform(1./alpha_bound, alpha_bound, batch_size)))
+            alpha.set_value(np.float32(np.random.uniform(1./alpha_bound, alpha_bound, (batch_size, 1))))
             loss = optim_step().item()
             train_losses.append(loss)
             trbar.set_description("Training (loss {:.3g})".format(loss))
@@ -142,7 +142,7 @@ if args.subcommand == "train":
                 with tqdm(desc="Validating", file=sys.stdout, ncols=100, total=args.val_iterations, ascii=True, unit="iteration", leave=False) as valbar:
                     for vali in range(args.val_iterations):
                         X.set_value(val_batch_generator.get_batch(), borrow=True)
-                        alpha.set_value(np.float32(np.random.uniform(1. / alpha_bound, alpha_bound, batch_size)))
+                        alpha.set_value(np.float32(np.random.uniform(1. / alpha_bound, alpha_bound, (batch_size, 1))))
                         loss = get_loss().item()
                         batch_size = X.shape[0].eval()
                         n_val += batch_size
@@ -156,7 +156,7 @@ if args.subcommand == "train":
 
                 if args.test_image is not None:
                     X.set_value([test_image]*5, borrow=True)
-                    alpha.set_value(np.float32(np.arange(1./alpha_bound, alpha_bound, (alpha_bound-1./alpha_bound) / 5)))
+                    alpha.set_value(np.array([np.arange(1./alpha_bound, alpha_bound, (alpha_bound-1./alpha_bound) / 5)], dtype=floatX))
                     test_tr = get_Xtr()
                     test_tr = np.concatenate(test_tr, axis=1)
                     deprocess_img_and_save(test_tr, os.path.join(args.output_dir, "test_iter_{}.jpg".format(tri + 1)))
