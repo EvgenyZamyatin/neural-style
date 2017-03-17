@@ -130,7 +130,13 @@ if args.subcommand == "train":
             alpha_bound = min(3., alpha_bound + 4e-4)
             X.set_value(train_batch_generator.get_batch(), borrow=True)
             batch_size = X.shape[0].eval()
-            alpha.set_value(np.float32(np.random.uniform(1./alpha_bound, alpha_bound, (batch_size, 1))))
+
+            a = np.float32(np.random.uniform(1., alpha_bound, (batch_size, 1)))
+            b = np.random.randint(0, 2, a.shape)
+            b[b == 0] = -1
+            a = np.power(a, b)
+            alpha.set_value(a)
+
             loss = optim_step().item()
             train_losses.append(loss)
             trbar.set_description("Training (loss {:.3g})".format(loss))
@@ -142,7 +148,11 @@ if args.subcommand == "train":
                 with tqdm(desc="Validating", file=sys.stdout, ncols=100, total=args.val_iterations, ascii=True, unit="iteration", leave=False) as valbar:
                     for vali in range(args.val_iterations):
                         X.set_value(val_batch_generator.get_batch(), borrow=True)
-                        alpha.set_value(np.float32(np.random.uniform(1. / alpha_bound, alpha_bound, (batch_size, 1))))
+                        a = np.float32(np.random.uniform(1., alpha_bound, (batch_size, 1)))
+                        b = np.random.randint(0, 2, a.shape)
+                        b[b == 0] = -1
+                        a = np.power(a, b)
+                        alpha.set_value(a)
                         loss = get_loss().item()
                         batch_size = X.shape[0].eval()
                         n_val += batch_size
