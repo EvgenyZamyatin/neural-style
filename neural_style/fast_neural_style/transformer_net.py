@@ -10,7 +10,6 @@ from neural_style.utils import floatX
 
 
 class InstanceNormalization(Layer):
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
@@ -29,7 +28,6 @@ class InstanceNormalization(Layer):
 
 
 class ReflectPadding2D(Layer):
-
     def __init__(self, padding=(1, 1), **kwargs):
         self.padding = padding
         super().__init__(**kwargs)
@@ -39,20 +37,21 @@ class ReflectPadding2D(Layer):
 
     def call(self, x, mask=None):
         p0, p1 = self.padding[0], self.padding[1]
-        y = T.zeros((x.shape[0], x.shape[1], x.shape[2]+(2*p0), x.shape[3]+(2*p1)), dtype=floatX)
+        y = T.zeros((x.shape[0], x.shape[1], x.shape[2] + (2 * p0), x.shape[3] + (2 * p1)), dtype=floatX)
         y = T.set_subtensor(y[:, :, p0:-p0, p1:-p1], x)
         y = T.set_subtensor(y[:, :, :p0, p1:-p1], x[:, :, p0:0:-1, :])
-        y = T.set_subtensor(y[:, :, -p0:, p1:-p1], x[:, :, -2:-2-p0:-1])
+        y = T.set_subtensor(y[:, :, -p0:, p1:-p1], x[:, :, -2:-2 - p0:-1])
         y = T.set_subtensor(y[:, :, p0:-p0, :p1], x[:, :, :, p1:0:-1])
-        y = T.set_subtensor(y[:, :, p0:-p0, -p1:], x[:, :, :, -2:-2-p1:-1])
+        y = T.set_subtensor(y[:, :, p0:-p0, -p1:], x[:, :, :, -2:-2 - p1:-1])
         y = T.set_subtensor(y[:, :, :p0, :p1], x[:, :, p0:0:-1, p1:0:-1])
-        y = T.set_subtensor(y[:, :, -p0:, :p1], x[:, :, -2:-2-p0:-1, p1:0:-1])
-        y = T.set_subtensor(y[:, :, :p0, -p1:], x[:, :, p0:0:-1, -2:-2-p1:-1])
-        y = T.set_subtensor(y[:, :, -p0:, -p1:], x[:, :, -2:-2-p0:-1, -2:-2-p1:-1])
+        y = T.set_subtensor(y[:, :, -p0:, :p1], x[:, :, -2:-2 - p0:-1, p1:0:-1])
+        y = T.set_subtensor(y[:, :, :p0, -p1:], x[:, :, p0:0:-1, -2:-2 - p1:-1])
+        y = T.set_subtensor(y[:, :, -p0:, -p1:], x[:, :, -2:-2 - p0:-1, -2:-2 - p1:-1])
         return y
 
     def get_output_shape_for(self, input_shape):
-        return (input_shape[0], input_shape[1], input_shape[2]+(2*self.padding[0]), input_shape[3]+(2*self.padding[1]))
+        return (
+        input_shape[0], input_shape[1], input_shape[2] + (2 * self.padding[0]), input_shape[3] + (2 * self.padding[1]))
 
 
 def conv_layer(in_, nb_filter, filter_length, subsample=1, upsample=1, only_conv=False):
@@ -79,12 +78,13 @@ def get_transformer_net(X, alpha, weights=None):
     input_X = Input(tensor=X, shape=(3, 256, 256))
     input_a = Input(tensor=alpha, shape=(1,))
     y = conv_layer(input_X, 32, 9)
-    #y1 = Reshape((32, 1, 1))(Dense(32, input_shape=(1,))(input_a))
-    #y = merge([y, y1])
-    y = merge([y, Lambda(lambda x: x.
-                         repeat(x.shape[0] * x.shape[1] * x.shape[2] * x.shape[3]).
-                         reshape(x.shape[0], x.shape[1], x.shape[2], x.shape[3]))],
-              output_shape=(32, 256, 256))
+    # y1 = Reshape((32, 1, 1))(Dense(32, input_shape=(1,))(input_a))
+    # y = merge([y, y1])
+    y1 = Lambda(lambda x: x.
+                repeat(x.shape[0] * x.shape[1] * x.shape[2] * x.shape[3]).
+                reshape(x.shape[0], x.shape[1], x.shape[2], x.shape[3]),
+                output_shape=(32, 256, 256))(input_a)
+    y = merge([y, y1])
     y = conv_layer(y, 64, 3, subsample=2)
     y = merge([y, Dense(64)(input_a)])
     y = conv_layer(y, 128, 3, subsample=2)
@@ -115,4 +115,3 @@ def get_transformer_net(X, alpha, weights=None):
             print(e)
             sys.exit(1)
     return net
-
