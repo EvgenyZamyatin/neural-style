@@ -78,10 +78,10 @@ def residual_block(in_):
 
 def cond_concat(y, input_a, shape):
     y1 = Lambda(lambda x: x.
-                repeat(y.shape[1] * y.shape[2] * y.shape[3], axis=1).
-                reshape((y.shape[0], y.shape[1], y.shape[2], y.shape[3])),
+                repeat(1 * y.shape[2] * y.shape[3], axis=1).
+                reshape((y.shape[0], 1, y.shape[2], y.shape[3])),
                 output_shape=shape)(input_a)
-    y = merge([y, y1])
+    y = merge([y, y1], mode='concat', concat_axis=1)
     return y
 
 
@@ -95,19 +95,19 @@ def get_transformer_net(X, alpha, weights=None):
     y = conv_layer(y, 128, 3, subsample=2)
     y = cond_concat(y, input_a, (128, 64, 64))
     y = residual_block(y)
-    y = cond_concat(y, input_a, (128, 64, 64))
+    #y = cond_concat(y, input_a, (128, 64, 64))
     y = residual_block(y)
-    y = cond_concat(y, input_a, (128, 64, 64))
+    #y = cond_concat(y, input_a, (128, 64, 64))
     y = residual_block(y)
-    y = cond_concat(y, input_a, (128, 64, 64))
+    #y = cond_concat(y, input_a, (128, 64, 64))
     y = residual_block(y)
-    y = cond_concat(y, input_a, (128, 64, 64))
+    #y = cond_concat(y, input_a, (128, 64, 64))
     y = residual_block(y)
-    y = cond_concat(y, input_a, (128, 64, 64))
+    #y = cond_concat(y, input_a, (128, 64, 64))
     y = conv_layer(y, 64, 3, upsample=2)
-    y = cond_concat(y, input_a, (64, 128, 128))
+    #y = cond_concat(y, input_a, (64, 128, 128))
     y = conv_layer(y, 32, 3, upsample=2)
-    y = cond_concat(y, input_a, (32, 256, 256))
+    #y = cond_concat(y, input_a, (32, 256, 256))
     y = conv_layer(y, 3, 9, only_conv=True)
     y = Activation("tanh")(y)
     y = Lambda(lambda x: x * 150, output_shape=(3, None, None))(y)
