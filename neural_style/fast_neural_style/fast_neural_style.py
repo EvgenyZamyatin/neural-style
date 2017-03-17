@@ -93,7 +93,7 @@ if args.subcommand == "train":
     except AttributeError:
         print("Error: unrecognized content layer: {}".format(args.content_layer))
         sys.exit(1)
-    content_loss = T.sum(T.sum(T.sqr(cl_X - cl_Xtr), axis=(1, 2, 3)) / alpha) / T.cast(cl_X.size, floatX)
+    content_loss = T.sum(T.sum(T.sqr(cl_X - cl_Xtr), axis=(1, 2, 3), keepdims=True) / alpha) / T.cast(cl_X.size, floatX)
 
     # Build the style loss.
     style_loss = 0.
@@ -112,7 +112,7 @@ if args.subcommand == "train":
 
         get_gram_X = theano.function([], gram_X)
         style_gram = theano.shared(get_gram_X()[0, :, :])
-        style_loss = style_loss + T.sum(T.sum(T.sqr(style_gram.dimshuffle("x", 0, 1) - gram_Xtr), axis=(1, 2))*alpha) / T.cast(Xtr.shape[0], floatX)
+        style_loss = style_loss + T.sum(T.sum(T.sqr(style_gram.dimshuffle("x", 0, 1) - gram_Xtr), axis=(1, 2), keepdims=True)*alpha) / T.cast(Xtr.shape[0], floatX)
 
     # Build the TV loss.
     tv_loss = (T.sum(T.abs_(Xtr[:, :, 1:, :] - Xtr[:, :, :-1, :])) + T.sum(T.abs_(Xtr[:, :, :, 1:] - Xtr[:, :, :, :-1]))) / T.cast(Xtr.shape[0], floatX)
