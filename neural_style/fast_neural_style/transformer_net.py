@@ -28,6 +28,7 @@ class InstanceNormalization(Layer):
         return self.scale.dimshuffle("x", 0, "x", "x") * y + self.shift.dimshuffle("x", 0, "x", "x")
 """
 
+ALPHA_DIM = 7
 
 class CondInstanceNormalization(Layer):
 
@@ -35,8 +36,8 @@ class CondInstanceNormalization(Layer):
         super().__init__(**kwargs)
 
     def build(self, input_shape):
-        self.scale = self.add_weight(shape=(7, input_shape[0][1]), initializer="uniform", trainable=True)
-        self.shift = self.add_weight(shape=(7, input_shape[0][1]), initializer="zero", trainable=True)
+        self.scale = self.add_weight(shape=(ALPHA_DIM, input_shape[0][1]), initializer="uniform", trainable=True)
+        self.shift = self.add_weight(shape=(ALPHA_DIM, input_shape[0][1]), initializer="zero", trainable=True)
         super().build(input_shape)
 
     def call(self, xa, mask=None):
@@ -47,7 +48,7 @@ class CondInstanceNormalization(Layer):
         mu_vec = mu.dimshuffle(0, 1, "x", "x")
         sig2 = T.square(x - mu_vec).sum(axis=-1).sum(axis=-1) / hw
         y = (x - mu_vec) / T.sqrt(sig2.dimshuffle(0, 1, "x", "x") + 1e-5)
-        return self.scale[a.flatten()].dimshuffle(0, 1, "x", "x") * y + self.shift[a.flatten()].dimshuffle(0, 1, "x", "x")
+        return a.dot(self.scale).dimshuffle(0, 1, "x", "x") * y + a.dot(self.shift).dimshuffle(0, 1, "x", "x")
 
     def get_output_shape_for(self, input_shape):
         return input_shape[0]
@@ -102,7 +103,7 @@ def residual_block(in_, a_):
 
 def get_transformer_net(X, alpha, weights=None):
     input_X = Input(tensor=X, shape=(3, 256, 256))
-    input_a = Input(tensor=alpha, shape=(1,))
+    input_a = Input(tensor=alpha, shape=(ALPHA_DIM,))
     y = conv_layer(input_X, alpha, 32, 9)
     y = conv_layer(y, alpha, 64, 3, subsample=2)
     y = conv_layer(y, alpha, 128, 3, subsample=2)

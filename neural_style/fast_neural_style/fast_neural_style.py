@@ -49,6 +49,12 @@ eval_arg_parser.add_argument("--model", type=str, required=True)
 
 args = main_arg_parser.parse_args()
 
+
+def one_hot(x, k):
+    result = np.zeros((len(x), k), dtype=floatX)
+    result[np.arange(len(x)), x] = 1
+    return result
+
 if args.subcommand is None:
     print("Error: specify either train or eval")
     sys.exit(1)
@@ -100,7 +106,7 @@ if args.subcommand == "train":
     except AttributeError:
         print("Error: unrecognized content layer: {}".format(args.content_layer))
         sys.exit(1)
-    content_loss = T.sum(T.sum(T.sqr(cl_X - cl_Xtr), axis=(1, 2, 3), keepdims=True) / S_COEFS[alpha]) / T.cast(cl_X.size, floatX)
+    content_loss = T.sum(T.sum(T.sqr(cl_X - cl_Xtr), axis=(1, 2, 3), keepdims=True) / S_COEFS.dot(alpha.transpose())) / T.cast(cl_X.size, floatX)
 
     # Build the style loss.
     style_loss = 0.
@@ -123,7 +129,7 @@ if args.subcommand == "train":
         get_gram_X = theano.function([], gram_X)
         style_gram = theano.shared(get_gram_X()[0, :, :])
         style_loss = style_loss + T.sum(
-            T.sum(T.sqr(style_gram.dimshuffle("x", 0, 1) - gram_Xtr), axis=(1, 2), keepdims=True) * S_COEFS[alpha]) / T.cast(Xtr.shape[0], floatX)
+            T.sum(T.sqr(style_gram.dimshuffle("x", 0, 1) - gram_Xtr), axis=(1, 2), keepdims=True) * S_COEFS.dot(alpha.transpose())) / T.cast(Xtr.shape[0], floatX)
 
     # Build the TV loss.
     tv_loss = (T.sum(T.abs_(Xtr[:, :, 1:, :] - Xtr[:, :, :-1, :])) + T.sum(
@@ -143,7 +149,9 @@ if args.subcommand == "train":
         for tri in range(args.train_iterations):
             X.set_value(train_batch_generator.get_batch(), borrow=True)
             batch_size = X.shape[0].eval()
-            alpha.set_value(np.random.randint(0, len(S_COEFS.get_value()), (batch_size, 1)).astype(np.int32))
+            a = np.random.randint(0, len(S_COEFS.get_value()), batch_size).astype(np.int32)
+            a[:] = a[0]
+            alpha.set_value(one_hot(a, len(S_COEFS.get_value())))
 
             loss = optim_step().item()
             train_losses.append(loss)
@@ -157,7 +165,9 @@ if args.subcommand == "train":
                           unit="iteration", leave=False) as valbar:
                     for vali in range(args.val_iterations):
                         X.set_value(val_batch_generator.get_batch(), borrow=True)
-                        alpha.set_value(np.random.randint(0, len(S_COEFS.get_value()), (batch_size, 1)).astype(np.int32))
+                        a = np.random.randint(0, len(S_COEFS.get_value()), batch_size).astype(np.int32)
+                        a[:] = a[0]
+                        alpha.set_value(one_hot(a, len(S_COEFS.get_value())))
                         loss = get_loss().item()
                         batch_size = X.shape[0].eval()
                         n_val += batch_size
@@ -172,7 +182,8 @@ if args.subcommand == "train":
 
                 if args.test_image is not None:
                     X.set_value(test_image.repeat(len(S_COEFS.get_value()), axis=0), borrow=True)
-                    alpha.set_value(np.arange(0, len(S_COEFS.get_value())).reshape(len(S_COEFS.get_value()), 1).astype(np.int32))
+                    a = np.arange(0, len(S_COEFS.get_value())).reshape(len(S_COEFS.get_value()), 1).astype(np.int32)
+                    alpha.set_value(one_hot(a, len(S_COEFS.get_value())))
                     test_tr = get_Xtr()
                     test_tr = np.concatenate(test_tr, axis=2)[np.newaxis]
                     deprocess_img_and_save(test_tr, os.path.join(args.output_dir, "test_iter_{}.jpg".format(tri + 1)))
