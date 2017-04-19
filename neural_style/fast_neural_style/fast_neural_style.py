@@ -150,7 +150,8 @@ if args.subcommand == "train":
             X.set_value(train_batch_generator.get_batch(), borrow=True)
             batch_size = X.shape[0].eval()
             a = np.random.randint(0, len(S_COEFS.get_value()), batch_size).astype(np.int32)
-            a[:] = a[0]
+            if np.random.randint(0, 2) == 0:
+                a[:] = a[0]
             alpha.set_value(one_hot(a, len(S_COEFS.get_value())))
             loss = optim_step().item()
             train_losses.append(loss)
