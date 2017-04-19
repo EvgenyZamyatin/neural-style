@@ -2,15 +2,15 @@ import sys
 
 import numpy as np
 import theano.tensor as T
-from keras.layers import Input, Conv2D, Activation, Lambda, UpSampling2D, merge, Dense, Reshape
+from keras.layers import Input, Conv2D, Activation, Lambda, UpSampling2D, merge
 from keras.models import Model
 from keras.engine.topology import Layer
 
 from neural_style.utils import floatX
-import sys
-sys.setrecursionlimit(100000)
 
+"""
 class InstanceNormalization(Layer):
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
@@ -26,9 +26,32 @@ class InstanceNormalization(Layer):
         sig2 = T.square(x - mu_vec).sum(axis=-1).sum(axis=-1) / hw
         y = (x - mu_vec) / T.sqrt(sig2.dimshuffle(0, 1, "x", "x") + 1e-5)
         return self.scale.dimshuffle("x", 0, "x", "x") * y + self.shift.dimshuffle("x", 0, "x", "x")
+"""
+
+
+class CondInstanceNormalization(Layer):
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def build(self, input_shape):
+        self.scale = self.add_weight(shape=(5, input_shape[1],), initializer="uniform", trainable=True)
+        self.shift = self.add_weight(shape=(5, input_shape[1],), initializer="zero", trainable=True)
+        super().build(input_shape)
+
+    def call(self, xa, mask=None):
+        x = xa[0]
+        a = xa[1]
+        hw = T.cast(x.shape[2] * x.shape[3], floatX)
+        mu = x.sum(axis=-1).sum(axis=-1) / hw
+        mu_vec = mu.dimshuffle(0, 1, "x", "x")
+        sig2 = T.square(x - mu_vec).sum(axis=-1).sum(axis=-1) / hw
+        y = (x - mu_vec) / T.sqrt(sig2.dimshuffle(0, 1, "x", "x") + 1e-5)
+        return self.scale[a].dimshuffle("x", 0, "x", "x") * y + self.shift[a].dimshuffle("x", 0, "x", "x")
 
 
 class ReflectPadding2D(Layer):
+
     def __init__(self, padding=(1, 1), **kwargs):
         self.padding = padding
         super().__init__(**kwargs)
@@ -38,25 +61,23 @@ class ReflectPadding2D(Layer):
 
     def call(self, x, mask=None):
         p0, p1 = self.padding[0], self.padding[1]
-        y = T.zeros((x.shape[0], x.shape[1], x.shape[2] + (2 * p0), x.shape[3] + (2 * p1)), dtype=floatX)
+        y = T.zeros((x.shape[0], x.shape[1], x.shape[2]+(2*p0), x.shape[3]+(2*p1)), dtype=floatX)
         y = T.set_subtensor(y[:, :, p0:-p0, p1:-p1], x)
         y = T.set_subtensor(y[:, :, :p0, p1:-p1], x[:, :, p0:0:-1, :])
-        y = T.set_subtensor(y[:, :, -p0:, p1:-p1], x[:, :, -2:-2 - p0:-1])
+        y = T.set_subtensor(y[:, :, -p0:, p1:-p1], x[:, :, -2:-2-p0:-1])
         y = T.set_subtensor(y[:, :, p0:-p0, :p1], x[:, :, :, p1:0:-1])
-        y = T.set_subtensor(y[:, :, p0:-p0, -p1:], x[:, :, :, -2:-2 - p1:-1])
+        y = T.set_subtensor(y[:, :, p0:-p0, -p1:], x[:, :, :, -2:-2-p1:-1])
         y = T.set_subtensor(y[:, :, :p0, :p1], x[:, :, p0:0:-1, p1:0:-1])
-        y = T.set_subtensor(y[:, :, -p0:, :p1], x[:, :, -2:-2 - p0:-1, p1:0:-1])
-        y = T.set_subtensor(y[:, :, :p0, -p1:], x[:, :, p0:0:-1, -2:-2 - p1:-1])
-        y = T.set_subtensor(y[:, :, -p0:, -p1:], x[:, :, -2:-2 - p0:-1, -2:-2 - p1:-1])
+        y = T.set_subtensor(y[:, :, -p0:, :p1], x[:, :, -2:-2-p0:-1, p1:0:-1])
+        y = T.set_subtensor(y[:, :, :p0, -p1:], x[:, :, p0:0:-1, -2:-2-p1:-1])
+        y = T.set_subtensor(y[:, :, -p0:, -p1:], x[:, :, -2:-2-p0:-1, -2:-2-p1:-1])
         return y
 
     def get_output_shape_for(self, input_shape):
-        return (
-            input_shape[0], input_shape[1], input_shape[2] + (2 * self.padding[0]),
-            input_shape[3] + (2 * self.padding[1]))
+        return (input_shape[0], input_shape[1], input_shape[2]+(2*self.padding[0]), input_shape[3]+(2*self.padding[1]))
 
 
-def conv_layer(in_, nb_filter, filter_length, subsample=1, upsample=1, only_conv=False):
+def conv_layer(in_, a_, nb_filter, filter_length, subsample=1, upsample=1, only_conv=False):
     if upsample != 1:
         out = UpSampling2D(size=(upsample, upsample))(in_)
     else:
@@ -65,51 +86,31 @@ def conv_layer(in_, nb_filter, filter_length, subsample=1, upsample=1, only_conv
     out = ReflectPadding2D((padding, padding))(out)
     out = Conv2D(nb_filter, filter_length, filter_length, subsample=(subsample, subsample), border_mode="valid")(out)
     if not only_conv:
-        out = InstanceNormalization()(out)
+        out = CondInstanceNormalization()([out, a_])
         out = Activation("relu")(out)
     return out
 
 
-def residual_block(in_):
-    out = conv_layer(in_, 128, 3)
-    out = conv_layer(out, 128, 3, only_conv=True)
+def residual_block(in_, a_):
+    out = conv_layer(in_, a_, 128, 3)
+    out = conv_layer(out, a_, 128, 3, only_conv=True)
     return merge([out, in_], mode="sum")
-
-
-def cond_concat(y, input_a, shape):
-    y1 = Lambda(lambda x: x.
-                repeat(1 * y.shape[2] * y.shape[3], axis=1).
-                reshape((y.shape[0], 1, y.shape[2], y.shape[3])),
-                output_shape=shape)(input_a)
-    y = merge([y, y1], mode='concat', concat_axis=1)
-    return y
 
 
 def get_transformer_net(X, alpha, weights=None):
     input_X = Input(tensor=X, shape=(3, 256, 256))
     input_a = Input(tensor=alpha, shape=(1,))
-    y = cond_concat(input_X, input_a, (1, 256, 256))
-    y = conv_layer(y, 32, 9)
-    #y = cond_concat(y, input_a, (1, 256, 256))
-    y = conv_layer(y, 64, 3, subsample=2)
-    #y = cond_concat(y, input_a, (1, 128, 128))
-    y = conv_layer(y, 128, 3, subsample=2)
-    #y = cond_concat(y, input_a, (1, 128, 128))
-    y = residual_block(y)
-    #y = cond_concat(y, input_a, (128, 64, 64))
-    y = residual_block(y)
-    #y = cond_concat(y, input_a, (128, 64, 64))
-    y = residual_block(y)
-    #y = cond_concat(y, input_a, (128, 64, 64))
-    y = residual_block(y)
-    #y = cond_concat(y, input_a, (128, 64, 64))
-    y = residual_block(y)
-    #y = cond_concat(y, input_a, (128, 64, 64))
-    y = conv_layer(y, 64, 3, upsample=2)
-    #y = cond_concat(y, input_a, (64, 128, 128))
-    y = conv_layer(y, 32, 3, upsample=2)
-    #y = cond_concat(y, input_a, (32, 256, 256))
-    y = conv_layer(y, 3, 9, only_conv=True)
+    y = conv_layer(input_X, alpha, 32, 9)
+    y = conv_layer(y, alpha, 64, 3, subsample=2)
+    y = conv_layer(y, alpha, 128, 3, subsample=2)
+    y = residual_block(y, alpha)
+    y = residual_block(y, alpha)
+    y = residual_block(y, alpha)
+    y = residual_block(y, alpha)
+    y = residual_block(y, alpha)
+    y = conv_layer(y, alpha, 64, 3, upsample=2)
+    y = conv_layer(y, alpha, 32, 3, upsample=2)
+    y = conv_layer(y, alpha, 3, 9, only_conv=True)
     y = Activation("tanh")(y)
     y = Lambda(lambda x: x * 150, output_shape=(3, None, None))(y)
 

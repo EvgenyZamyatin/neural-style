@@ -3,6 +3,7 @@ import os
 import pickle
 import argparse
 import sys
+
 sys.path.append('./')
 import theano
 import theano.tensor as T
@@ -26,7 +27,8 @@ train_arg_parser.add_argument("--batch-size", type=int, default=4)
 train_arg_parser.add_argument("--content-size", type=int, default=256)
 train_arg_parser.add_argument("--perceptual-model", type=str, choices=models_table.keys(), default="vgg19")
 train_arg_parser.add_argument("--content-layer", type=str, default="block4_conv2")
-train_arg_parser.add_argument("--style-layers", type=str, nargs="+", default=["block1_conv1", "block2_conv1", "block3_conv1", "block4_conv1", "block5_conv1"])
+train_arg_parser.add_argument("--style-layers", type=str, nargs="+",
+                              default=["block1_conv1", "block2_conv1", "block3_conv1", "block4_conv1", "block5_conv1"])
 train_arg_parser.add_argument("--content-weight", type=float, default=8.)
 train_arg_parser.add_argument("--style-weight", type=float, default=5e-4)
 train_arg_parser.add_argument("--tv-weight", type=float, default=1e-4)
@@ -53,7 +55,9 @@ if args.subcommand is None:
 
 # Build transformer model.
 X = theano.shared(np.array([[[[]]]], dtype=floatX))
-alpha = theano.shared(np.array([[]], dtype=floatX))
+alpha = theano.shared(np.array([[]], dtype=np.int32))
+
+S_COEFS = np.array([1. / 10, 1. / 5, 1. / 2, 1, 2])
 
 weights = None if args.subcommand == "train" else args.model
 transformer_net = get_transformer_net(X, alpha, weights)
@@ -71,7 +75,8 @@ if args.subcommand == "train":
     # Prepare batch generators.
     train_batch_generator = BatchGenerator(args.train_dir, args.train_iterations, args.batch_size, args.content_size)
     num_validations = int(np.ceil(args.train_iterations / args.val_every))
-    val_batch_generator = BatchGenerator(args.val_dir, args.val_iterations * num_validations, args.batch_size, args.content_size, args.val_iterations)
+    val_batch_generator = BatchGenerator(args.val_dir, args.val_iterations * num_validations, args.batch_size,
+                                         args.content_size, args.val_iterations)
 
     # Load the style, and (optionally) test image(s).
     style_image = load_and_preprocess_img(args.style_image, args.style_size)
@@ -81,7 +86,8 @@ if args.subcommand == "train":
     # Build perceptual model.
     try:
         perceptual_net_X = models_table[args.perceptual_model](input_tensor=X, include_top=False, weights="imagenet")
-        perceptual_net_Xtr = models_table[args.perceptual_model](input_tensor=Xtr, include_top=False, weights="imagenet")
+        perceptual_net_Xtr = models_table[args.perceptual_model](input_tensor=Xtr, include_top=False,
+                                                                 weights="imagenet")
     except KeyError:
         print("Error: Unrecognized model: {}".format(args.perceptual_model))
         sys.exit(1)
@@ -93,7 +99,7 @@ if args.subcommand == "train":
     except AttributeError:
         print("Error: unrecognized content layer: {}".format(args.content_layer))
         sys.exit(1)
-    content_loss = T.sum(T.sum(T.sqr(cl_X - cl_Xtr), axis=(1, 2, 3), keepdims=True) / alpha) / T.cast(cl_X.size, floatX)
+    content_loss = T.sum(T.sum(T.sqr(cl_X - cl_Xtr), axis=(1, 2, 3), keepdims=True)) / T.cast(cl_X.size, floatX)
 
     # Build the style loss.
     style_loss = 0.
@@ -106,36 +112,37 @@ if args.subcommand == "train":
             print("Error: unrecognized style layer: {}".format(layer_name))
             sys.exit(1)
         slf_X = T.reshape(sl_X, (sl_X.shape[0], sl_X.shape[1], -1))
-        gram_X = (T.batched_tensordot(slf_X, slf_X.dimshuffle(0, 2, 1), axes=1) / T.cast(slf_X.size, floatX)) * T.cast(slf_X.shape[0], floatX)
+        gram_X = (T.batched_tensordot(slf_X, slf_X.dimshuffle(0, 2, 1), axes=1) / T.cast(slf_X.size, floatX)) * T.cast(
+            slf_X.shape[0], floatX)
         slf_Xtr = T.reshape(sl_Xtr, (sl_Xtr.shape[0], sl_Xtr.shape[1], -1))
-        gram_Xtr = (T.batched_tensordot(slf_Xtr, slf_Xtr.dimshuffle(0, 2, 1), axes=1) / T.cast(slf_Xtr.size, floatX)) * T.cast(slf_Xtr.shape[0], floatX)
+        gram_Xtr = (T.batched_tensordot(slf_Xtr, slf_Xtr.dimshuffle(0, 2, 1), axes=1) / T.cast(slf_Xtr.size,
+                                                                                               floatX)) * T.cast(
+            slf_Xtr.shape[0], floatX)
 
         get_gram_X = theano.function([], gram_X)
         style_gram = theano.shared(get_gram_X()[0, :, :])
-        style_loss = style_loss + T.sum(T.sum(T.sqr(style_gram.dimshuffle("x", 0, 1) - gram_Xtr), axis=(1, 2), keepdims=True)*alpha) / T.cast(Xtr.shape[0], floatX)
+        style_loss = style_loss + T.sum(
+            T.sum(T.sqr(style_gram.dimshuffle("x", 0, 1) - gram_Xtr), axis=(1, 2), keepdims=True) * S_COEFS[alpha]) / T.cast(Xtr.shape[0], floatX)
 
     # Build the TV loss.
-    tv_loss = (T.sum(T.abs_(Xtr[:, :, 1:, :] - Xtr[:, :, :-1, :])) + T.sum(T.abs_(Xtr[:, :, :, 1:] - Xtr[:, :, :, :-1]))) / T.cast(Xtr.shape[0], floatX)
+    tv_loss = (T.sum(T.abs_(Xtr[:, :, 1:, :] - Xtr[:, :, :-1, :])) + T.sum(
+        T.abs_(Xtr[:, :, :, 1:] - Xtr[:, :, :, :-1]))) / T.cast(Xtr.shape[0], floatX)
 
     # Build the total loss, and optimization, validation funciton.
     loss = (args.content_weight * content_loss) + (args.style_weight * style_loss) + (args.tv_weight * tv_loss)
-    optim_step = theano.function([], loss, updates=get_adam_updates(loss, transformer_net.trainable_weights, lr=args.lr, dec=args.lr_decay))
+    optim_step = theano.function([], loss, updates=get_adam_updates(loss, transformer_net.trainable_weights, lr=args.lr,
+                                                                    dec=args.lr_decay))
     get_loss = theano.function([], loss)
 
     # Run the optimization loop.
     train_losses, val_losses = [], []
     alpha_bound = 1.1
-    with tqdm(desc="Training", file=sys.stdout, ncols=100, total=args.train_iterations, ascii=True, unit="iteration") as trbar:
+    with tqdm(desc="Training", file=sys.stdout, ncols=100, total=args.train_iterations, ascii=True,
+              unit="iteration") as trbar:
         for tri in range(args.train_iterations):
-            alpha_bound = min(3., alpha_bound + 4e-4)
             X.set_value(train_batch_generator.get_batch(), borrow=True)
             batch_size = X.shape[0].eval()
-
-            a = np.float32(np.random.uniform(1., alpha_bound, (batch_size, 1)))
-            b = np.random.randint(0, 2, a.shape)
-            b[b == 0] = -1
-            a = np.float32(np.power(a, b))
-            alpha.set_value(a)
+            alpha.set_value(np.random.randint(0, 4, batch_size))
 
             loss = optim_step().item()
             train_losses.append(loss)
@@ -145,28 +152,26 @@ if args.subcommand == "train":
             if (tri + 1) % args.val_every == 0 or (tri + 1) == args.train_iterations:
                 batch_val_losses = []
                 n_val = 0
-                with tqdm(desc="Validating", file=sys.stdout, ncols=100, total=args.val_iterations, ascii=True, unit="iteration", leave=False) as valbar:
+                with tqdm(desc="Validating", file=sys.stdout, ncols=100, total=args.val_iterations, ascii=True,
+                          unit="iteration", leave=False) as valbar:
                     for vali in range(args.val_iterations):
                         X.set_value(val_batch_generator.get_batch(), borrow=True)
-                        a = np.float32(np.random.uniform(1., alpha_bound, (batch_size, 1)))
-                        b = np.random.randint(0, 2, a.shape)
-                        b[b == 0] = -1
-                        a = np.float32(np.power(a, b))
-                        alpha.set_value(a)
+                        alpha.set_value(np.random.randint(0, 4, batch_size))
                         loss = get_loss().item()
                         batch_size = X.shape[0].eval()
                         n_val += batch_size
-                        batch_val_losses.append(loss*batch_size)
+                        batch_val_losses.append(loss * batch_size)
                         valbar.update(1)
                 mean_val_loss = np.sum(batch_val_losses) / n_val
                 val_losses.append(mean_val_loss)
 
                 if args.checkpoint:
-                    transformer_net.save_weights(os.path.join(args.output_dir, "model_checkpoint_{}.h5".format(tri + 1)), overwrite=True)
+                    transformer_net.save_weights(
+                        os.path.join(args.output_dir, "model_checkpoint_{}.h5".format(tri + 1)), overwrite=True)
 
                 if args.test_image is not None:
                     X.set_value(test_image.repeat(5, axis=0), borrow=True)
-                    alpha.set_value(np.arange(1./alpha_bound, alpha_bound, (alpha_bound-1./alpha_bound) / 5, dtype=floatX).reshape((5,1)))
+                    alpha.set_value(np.arange(0, 5))
                     test_tr = get_Xtr()
                     test_tr = np.concatenate(test_tr, axis=2)[np.newaxis]
                     deprocess_img_and_save(test_tr, os.path.join(args.output_dir, "test_iter_{}.jpg".format(tri + 1)))
@@ -187,4 +192,3 @@ else:
     X.set_value(content_image)
     output_image = get_Xtr()
     deprocess_img_and_save(output_image, args.output_image)
-
