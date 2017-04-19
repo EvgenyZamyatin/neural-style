@@ -59,6 +59,7 @@ alpha = theano.shared(np.array([[]], dtype=np.int32))
 
 S_COEFS = theano.shared(np.array([1./10, 1./5, 1/.2, 1, 2, 3, 5], dtype=floatX))
 
+
 weights = None if args.subcommand == "train" else args.model
 transformer_net = get_transformer_net(X, alpha, weights)
 Xtr = transformer_net.output
@@ -142,7 +143,7 @@ if args.subcommand == "train":
         for tri in range(args.train_iterations):
             X.set_value(train_batch_generator.get_batch(), borrow=True)
             batch_size = X.shape[0].eval()
-            alpha.set_value(np.random.randint(0, len(S_COEFS), (batch_size, 1)).astype(np.int32))
+            alpha.set_value(np.random.randint(0, len(S_COEFS.get_value()), (batch_size, 1)).astype(np.int32))
 
             loss = optim_step().item()
             train_losses.append(loss)
@@ -156,7 +157,7 @@ if args.subcommand == "train":
                           unit="iteration", leave=False) as valbar:
                     for vali in range(args.val_iterations):
                         X.set_value(val_batch_generator.get_batch(), borrow=True)
-                        alpha.set_value(np.random.randint(0, len(S_COEFS), (batch_size, 1)).astype(np.int32))
+                        alpha.set_value(np.random.randint(0, len(S_COEFS.get_value()), (batch_size, 1)).astype(np.int32))
                         loss = get_loss().item()
                         batch_size = X.shape[0].eval()
                         n_val += batch_size
@@ -170,8 +171,8 @@ if args.subcommand == "train":
                         os.path.join(args.output_dir, "model_checkpoint_{}.h5".format(tri + 1)), overwrite=True)
 
                 if args.test_image is not None:
-                    X.set_value(test_image.repeat(len(S_COEFS), axis=0), borrow=True)
-                    alpha.set_value(np.arange(0, len(S_COEFS)).reshape(len(S_COEFS), 1).astype(np.int32))
+                    X.set_value(test_image.repeat(len(S_COEFS.get_value()), axis=0), borrow=True)
+                    alpha.set_value(np.arange(0, len(S_COEFS.get_value())).reshape(len(S_COEFS.get_value()), 1).astype(np.int32))
                     test_tr = get_Xtr()
                     test_tr = np.concatenate(test_tr, axis=2)[np.newaxis]
                     deprocess_img_and_save(test_tr, os.path.join(args.output_dir, "test_iter_{}.jpg".format(tri + 1)))
