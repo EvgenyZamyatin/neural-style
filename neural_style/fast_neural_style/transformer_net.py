@@ -47,6 +47,7 @@ class CondInstanceNormalization(Layer):
         mu_vec = mu.dimshuffle(0, 1, "x", "x")
         sig2 = T.square(x - mu_vec).sum(axis=-1).sum(axis=-1) / hw
         y = (x - mu_vec) / T.sqrt(sig2.dimshuffle(0, 1, "x", "x") + 1e-5)
+        print(self.scale)
         return self.scale[a].dimshuffle(0, 1, "x", "x") * y + self.shift[a].dimshuffle(0, 1, "x", "x")
 
 
