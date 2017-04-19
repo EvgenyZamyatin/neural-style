@@ -57,7 +57,7 @@ if args.subcommand is None:
 X = theano.shared(np.array([[[[]]]], dtype=floatX))
 alpha = theano.shared(np.array([[]], dtype=np.int32))
 
-S_COEFS = theano.shared([1. / 10, 1. / 5, 1. / 2, 1, 2], dtype=floatX)
+S_COEFS = theano.shared(np.array([1. / 10, 1. / 5, 1. / 2, 1, 2], dtype=floatX))
 
 weights = None if args.subcommand == "train" else args.model
 transformer_net = get_transformer_net(X, alpha, weights)
