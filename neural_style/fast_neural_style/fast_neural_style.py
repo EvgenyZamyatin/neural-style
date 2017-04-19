@@ -152,7 +152,6 @@ if args.subcommand == "train":
             a = np.random.randint(0, len(S_COEFS.get_value()), batch_size).astype(np.int32)
             a[:] = a[0]
             alpha.set_value(one_hot(a, len(S_COEFS.get_value())))
-            print(alpha.get_value())
             loss = optim_step().item()
             train_losses.append(loss)
             trbar.set_description("Training (loss {:.3g})".format(loss))
@@ -184,7 +183,6 @@ if args.subcommand == "train":
                     X.set_value(test_image.repeat(len(S_COEFS.get_value()), axis=0), borrow=True)
                     a = np.arange(0, len(S_COEFS.get_value())).astype(np.int32)
                     alpha.set_value(one_hot(a, len(S_COEFS.get_value())))
-                    print(alpha.get_value())
                     test_tr = get_Xtr()
                     test_tr = np.concatenate(test_tr, axis=2)[np.newaxis]
                     deprocess_img_and_save(test_tr, os.path.join(args.output_dir, "test_iter_{}.jpg".format(tri + 1)))
