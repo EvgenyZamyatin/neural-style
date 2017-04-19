@@ -106,7 +106,7 @@ if args.subcommand == "train":
     except AttributeError:
         print("Error: unrecognized content layer: {}".format(args.content_layer))
         sys.exit(1)
-    content_loss = T.sum(T.sum(T.sqr(cl_X - cl_Xtr), axis=(1, 2, 3), keepdims=True) / S_COEFS.dot(alpha.transpose())) / T.cast(cl_X.size, floatX)
+    content_loss = T.sum(T.sum(T.sqr(cl_X - cl_Xtr), axis=(1, 2, 3), keepdims=True)) / T.cast(cl_X.size, floatX)
 
     # Build the style loss.
     style_loss = 0.
