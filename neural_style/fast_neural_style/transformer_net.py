@@ -48,7 +48,7 @@ class CondInstanceNormalization(Layer):
         sig2 = T.square(x - mu_vec).sum(axis=-1).sum(axis=-1) / hw
         y = (x - mu_vec) / T.sqrt(sig2.dimshuffle(0, 1, "x", "x") + 1e-5)
         print(self.scale.get_value())
-        return self.scale[a].dimshuffle(0, 1, "x", "x") * y + self.shift[a].dimshuffle(0, 1, "x", "x")
+        return self.scale[a.flatten()].dimshuffle(0, 1, "x", "x") * y + self.shift[a.flatten()].dimshuffle(0, 1, "x", "x")
 
 
 class ReflectPadding2D(Layer):
