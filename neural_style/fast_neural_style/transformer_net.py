@@ -35,8 +35,8 @@ class CondInstanceNormalization(Layer):
         super().__init__(**kwargs)
 
     def build(self, input_shape):
-        self.scale = self.add_weight(shape=(5, input_shape[0][1],), initializer="uniform", trainable=True)
-        self.shift = self.add_weight(shape=(5, input_shape[0][1],), initializer="zero", trainable=True)
+        self.scale = self.add_weight(shape=(5, input_shape[0][1]), initializer="uniform", trainable=True)
+        self.shift = self.add_weight(shape=(5, input_shape[0][1]), initializer="zero", trainable=True)
         super().build(input_shape)
 
     def call(self, xa, mask=None):
