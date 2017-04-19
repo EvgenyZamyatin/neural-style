@@ -61,7 +61,7 @@ if args.subcommand is None:
 
 # Build transformer model.
 X = theano.shared(np.array([[[[]]]], dtype=floatX))
-alpha = theano.shared(np.array([[]], dtype=np.int32))
+alpha = theano.shared(np.array([[]], dtype=floatX))
 
 S_COEFS = theano.shared(np.array([1/10, 1/5, 1/3, 1, 1.5, 2, 3], dtype=floatX))
 
