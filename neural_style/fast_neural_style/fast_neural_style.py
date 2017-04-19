@@ -142,7 +142,7 @@ if args.subcommand == "train":
         for tri in range(args.train_iterations):
             X.set_value(train_batch_generator.get_batch(), borrow=True)
             batch_size = X.shape[0].eval()
-            alpha.set_value(np.random.randint(0, 4, batch_size))
+            alpha.set_value(np.random.randint(0, 4, (batch_size, 1)).astype(np.int32))
 
             loss = optim_step().item()
             train_losses.append(loss)
@@ -156,7 +156,7 @@ if args.subcommand == "train":
                           unit="iteration", leave=False) as valbar:
                     for vali in range(args.val_iterations):
                         X.set_value(val_batch_generator.get_batch(), borrow=True)
-                        alpha.set_value(np.random.randint(0, 4, batch_size))
+                        alpha.set_value(np.random.randint(0, 4, (batch_size, 1)).astype(np.int32))
                         loss = get_loss().item()
                         batch_size = X.shape[0].eval()
                         n_val += batch_size
@@ -171,7 +171,7 @@ if args.subcommand == "train":
 
                 if args.test_image is not None:
                     X.set_value(test_image.repeat(5, axis=0), borrow=True)
-                    alpha.set_value(np.arange(0, 5))
+                    alpha.set_value(np.arange(0, 5).reshape(5, 1).astype(np.int32))
                     test_tr = get_Xtr()
                     test_tr = np.concatenate(test_tr, axis=2)[np.newaxis]
                     deprocess_img_and_save(test_tr, os.path.join(args.output_dir, "test_iter_{}.jpg".format(tri + 1)))
